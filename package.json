@@ -1,16 +1,16 @@
 {
   "name": "cordova-chromecast",
-  "version": "0.0.1-alpha",
-  "description": "Chromecast plugin for Cordova ==================",
+  "version": "0.0.1",
+  "description": "Chromecast plugin for Cordova",
   "cordova": {
-    "id": "acidhax.cordova.chromecast",
+    "id": "cordova-plugin-cast",
     "platforms": [
       "android"
     ]
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nbabanov/cordova-chromecast.git"
+    "url": "https://gitlab.codevise.de/codevise/cordova-plugin-cast.git"
   },
   "keywords": [
     "ecosystem:cordova",
