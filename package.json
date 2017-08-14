@@ -1,0 +1,31 @@
+{
+  "name": "cordova-chromecast",
+  "version": "0.0.1-alpha",
+  "description": "Chromecast plugin for Cordova ==================",
+  "cordova": {
+    "id": "acidhax.cordova.chromecast",
+    "platforms": [
+      "android"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nbabanov/cordova-chromecast.git"
+  },
+  "keywords": [
+    "ecosystem:cordova",
+    "cordova-android"
+  ],
+  "engines": [
+    {
+      "name": "cordova",
+      "version": ">=3.4.0"
+    }
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nbabanov/cordova-chromecast/issues"
+  },
+  "homepage": "https://github.com/nbabanov/cordova-chromecast#readme"
+}
