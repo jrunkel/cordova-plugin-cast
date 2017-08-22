@@ -1,20 +1,31 @@
 {
-  "name": "Chromecast",
-  "version": "1.0.3",
-  "description": "Web intents for Cordova",
+  "name": "cordova-chromecast",
+  "version": "0.0.1",
+  "description": "Chromecast plugin for Cordova",
   "cordova": {
-    "id": "acidhax.cordova.chromecast",
+    "id": "cordova-plugin-cast",
     "platforms": [
-      "android",
-      "ios"
+      "android"
     ]
   },
-  "license": "MIT",
-  "engines": {
-    "cordovaDependencies": {
-      "3.0.0": {
-        "cordova": ">100"
-      }
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.codevise.de/codevise/cordova-plugin-cast.git"
+  },
+  "keywords": [
+    "ecosystem:cordova",
+    "cordova-android"
+  ],
+  "engines": [
+    {
+      "name": "cordova",
+      "version": ">=3.4.0"
     }
-  }
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nbabanov/cordova-chromecast/issues"
+  },
+  "homepage": "https://github.com/nbabanov/cordova-chromecast#readme"
 }
