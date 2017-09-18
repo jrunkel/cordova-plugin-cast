@@ -1,38 +1,42 @@
 package acidhax.cordova.chromecast;
 
 import android.annotation.TargetApi;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.net.wifi.WifiManager;
 import android.os.Build;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.List;
-import java.util.ArrayList;
+import android.os.PowerManager;
+import android.support.v7.media.MediaRouteSelector;
+import android.support.v7.media.MediaRouter;
+import android.support.v7.media.MediaRouter.RouteInfo;
+import android.util.Log;
 
+import com.amazon.whisperplay.fling.media.controller.DiscoveryController;
+import com.amazon.whisperplay.fling.media.controller.RemoteMediaPlayer;
+import com.amazon.whisperplay.fling.media.service.CustomMediaPlayer;
+import com.google.android.gms.cast.CastDevice;
 import com.google.android.gms.cast.CastMediaControlIntent;
 
-import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
+import org.apache.cordova.CordovaPlugin;
+import org.apache.cordova.CordovaWebView;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
-import android.content.SharedPreferences;
-import android.os.PowerManager;
-import android.support.v7.media.MediaRouter;
-import android.support.v7.media.MediaRouteSelector;
-import android.support.v7.media.MediaRouter.RouteInfo;
-import android.util.Log;
-import android.widget.ArrayAdapter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
 public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdatedListener, ChromecastOnSessionUpdatedListener {
+	private static final String TAG = Chromecast.class.getSimpleName();
 
 	private static final String SETTINGS_NAME= "CordovaChromecastSettings";
 
@@ -55,20 +59,29 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 		sendJavascript("console.log('" + s + "');");
 	}
 
+	private CustomMediaPlayer.StatusListener mListener;
+	private DiscoveryController mController;
+	private List<Object> mDeviceList = new LinkedList<>();
+	private Object mCurrentDevice;
+
 
 	public void initialize(final CordovaInterface cordova, CordovaWebView webView) {
 		super.initialize(cordova, webView);
+		log("initialize");
 
 		// Restore preferences
 		this.settings = this.cordova.getActivity().getSharedPreferences(SETTINGS_NAME, 0);
 		this.lastSessionId = settings.getString("lastSessionId", "");
 		this.lastAppId = settings.getString("lastAppId", "");
 
+		mController = new DiscoveryController(cordova.getActivity().getApplicationContext());
+		mController.start("amzn.thin.pl", mDiscovery);
 	}
 
 	public void onDestroy() {
 		super.onDestroy();
 
+		Log.d(TAG, "onDestroy");
 		if (this.currentSession != null) {
 			this.unlockLocks();
 //    		this.currentSession.kill(new ChromecastSessionCallback() {
@@ -76,8 +89,68 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 //				void onError(String reason) {}
 //    		});
 		}
+
+		mController.stop();
 	}
 
+	private DiscoveryController.IDiscoveryListener mDiscovery = new DiscoveryController.IDiscoveryListener() {
+
+		@Override
+		public void playerDiscovered(RemoteMediaPlayer device) {
+			if (mDeviceList.contains(device)) {
+				mDeviceList.remove(device);
+				log("Updating Device:" + device.getName());
+			} else {
+				log("Adding Device:" + device.getName());
+			}
+			mDeviceList.add(device);
+		}
+
+		@Override
+		public void playerLost(RemoteMediaPlayer device) {
+			if( mDeviceList.contains(device) ) {
+				log("Removing Device:" + device.getName());
+
+				if( device.equals(mCurrentDevice) && mListener != null ) {
+					device.removeStatusListener(mListener);
+					mCurrentDevice = null;
+				}
+				mDeviceList.remove(device);
+			}
+		}
+
+		@Override
+		public void discoveryFailure() {
+			Log.e(TAG, "Discovery Failure");
+		}
+
+	};
+
+	private MediaRouter.Callback mCastCallback = new MediaRouter.Callback() {
+
+		public void onRouteAdded(android.support.v7.media.MediaRouter router, android.support.v7.media.MediaRouter.RouteInfo route) {
+			CastDevice device = CastDevice.getFromBundle(route.getExtras());
+			if (mDeviceList.contains(device)) {
+				mDeviceList.remove(device);
+				log("Updating Device:" + device.getFriendlyName());
+			} else {
+				log("Adding Device:" + device.getFriendlyName());
+			}
+			mDeviceList.add(device);
+		}
+
+		public void onRouteRemoved(android.support.v7.media.MediaRouter router, android.support.v7.media.MediaRouter.RouteInfo route) {
+			CastDevice device = CastDevice.getFromBundle(route.getExtras());
+			if( mDeviceList.contains(device) ) {
+				log("Removing Device:" + device.getFriendlyName());
+
+				if( device.equals(mCurrentDevice) && mListener != null ) {
+					mCurrentDevice = null;
+				}
+				mDeviceList.remove(device);
+			}
+		}
+	};
 	@Override
 	public boolean execute(String action, JSONArray args, CallbackContext cbContext) throws JSONException {
 		try {
@@ -146,6 +219,7 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 	 */
 	public boolean setup (CallbackContext callbackContext) {
 		callbackContext.success();
+		log("setup");
 
 		return true;
 	}
@@ -221,7 +295,7 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 				final List<RouteInfo> routeList = mMediaRouter.getRoutes();
 
 				AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-				builder.setTitle("Choose a Chromecast");
+				builder.setTitle("Connect to device");
 				//CharSequence[] seq = new CharSequence[routeList.size() -1];
 				ArrayList<String> seq_tmp1 = new ArrayList<String>();
 
@@ -495,8 +569,8 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 	 * @param  contentType             MIME type of the content
 	 * @param  duration                Duration of the content
 	 * @param  streamType              buffered | live | other
-	 * @param  loadRequest.autoPlay    Whether or not to automatically start playing the media
-	 * @param  loadRequest.currentTime Where to begin playing from
+	 * @param  autoPlay                Whether or not to automatically start playing the media
+	 * @param  currentTime             Where to begin playing from
 	 * @param  callbackContext
 	 */
 	public boolean loadMedia (String contentId, String contentType, Integer duration, String streamType, Boolean autoPlay, Double currentTime, JSONObject metadata, final CallbackContext callbackContext) {
@@ -735,8 +809,17 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 	 * @param route
 	 */
 	protected void onRouteAdded(MediaRouter router, final RouteInfo route) {
+		CastDevice device = CastDevice.getFromBundle(route.getExtras());
+		if (mDeviceList.contains(device)) {
+			mDeviceList.remove(device);
+			log("Updating Device:" + device.getFriendlyName());
+		} else {
+			log("Adding Device:" + device.getFriendlyName());
+		}
+		mDeviceList.add(device);
+
 		if (this.autoConnect && this.currentSession == null && !route.getName().equals("Phone")) {
-			log("Attempting to join rouonte " + route.getName());
+			log("Attempting to join route " + route.getName());
 			this.joinSession(route);
 		} else {
 			log("For some reason, not attempting to join route " + route.getName() + ", " + this.currentSession + ", " + this.autoConnect);
@@ -753,6 +836,16 @@ public class Chromecast extends CordovaPlugin implements ChromecastOnMediaUpdate
 	 * @param route
 	 */
 	protected void onRouteRemoved(MediaRouter router, RouteInfo route) {
+		CastDevice device = CastDevice.getFromBundle(route.getExtras());
+		if (mDeviceList.contains(device)) {
+			log("Removing Device:" + device.getFriendlyName());
+
+			if (device.equals(mCurrentDevice) && mListener != null) {
+				mCurrentDevice = null;
+			}
+			mDeviceList.remove(device);
+		}
+
 		this.checkReceiverAvailable();
 		if (!route.getName().equals("Phone") && route.getId().indexOf("Cast") > -1) {
 			sendJavascript("chrome.cast._.routeRemoved(" + routeToJSON(route) + ")");
