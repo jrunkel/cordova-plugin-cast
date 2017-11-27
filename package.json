@@ -16,13 +16,14 @@
     "ecosystem:cordova",
     "cordova-android"
   ],
-  "engines": [
-    {
-      "name": "cordova",
-      "version": ">=3.4.0"
+  "engines": {
+    "cordovaDependencies": {
+      "3.4.0": {
+        "cordova": ">100"
+      }
     }
-  ],
-  "author": "",
+  },
+  "author": "codevise",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/nbabanov/cordova-chromecast/issues"
